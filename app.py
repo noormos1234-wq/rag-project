@@ -1,6 +1,3 @@
-# --- تهيئة سجل الهجمات والتقييم في الذاكرة المؤقتة ---
-if "security_audit_log" not in st.session_state:
-    st.session_state.security_audit_log = []
 import os
 import re
 from typing import List, Tuple
@@ -20,6 +17,10 @@ st.set_page_config(
     page_title="Secure RAG & Prompt Injection Defense",
     layout="wide"
 )
+
+# --- تهيئة سجل الهجمات والتقييم في الذاكرة المؤقتة للجلسة ---
+if "security_audit_log" not in st.session_state:
+    st.session_state.security_audit_log = []
 
 # --- تحميل نموذج Transformers محلياً لمرة واحدة (Cached) ---
 @st.cache_resource
@@ -220,7 +221,7 @@ class CompleteMasterRAGSystem:
 
 # --- 3. تصميم واجهة المستخدم (Streamlit UI) ---
 st.title("🛡️ Secure RAG & Indirect Prompt Injection Defense Framework")
-st.markdown("إطار عمل رسالة الماجستير: دعم ملفات PDF و Word، الاسترجاع الدلالي، العزل الهيكلي، وتشغيل النموذج المحلي.")
+st.markdown("إطار عمل رسالة الماجستير: دعم ملفات PDF و Word، الاسترجاع الدلالي، العزل الهيكلي، وتوثيق سجل الهجمات.")
 
 system_engine = CompleteMasterRAGSystem()
 
@@ -297,6 +298,14 @@ with col2:
             elif llm_choice == "None (Prompt Generation Only)":
                 llm_response = "ℹ️ Mode set to Prompt Generation Only (No external LLM invoked. Protected prompt built successfully)."
 
+            # حفظ السجل في الذاكرة المؤقتة للجلسة
+            st.session_state.security_audit_log.append({
+                "status": security_status,
+                "is_attacked": is_attacked,
+                "query": query_box,
+                "metrics": metrics_info
+            })
+
             st.markdown("---")
             if is_attacked:
                 st.error(f"**حالة الأمان:** {security_status}")
@@ -309,4 +318,29 @@ with col2:
             st.text_area("🤖 رد النموذج اللغوي النهائي (Final LLM Response)", value=llm_response, height=150)
     else:
         st.info("قم بملء المدخلات على الجانب الأيسر واضغط على زر التشغيل لعرض النتائج هنا.")
-   
+
+# --- عرض سجل التدقيق وتقييم الأمان (Security Audit Trail Section) ---
+st.markdown("---")
+st.subheader("📋 سجل تقييم الأمان والتدقيق (Security Audit Trail)")
+
+if st.session_state.security_audit_log:
+    total_requests = len(st.session_state.security_audit_log)
+    attack_count = sum(1 for log in st.session_state.security_audit_log if log["is_attacked"])
+    clean_count = total_requests - attack_count
+    
+    metric_col1, metric_col2, metric_col3 = st.columns(3)
+    metric_col1.metric("إجمالي الطلبات", total_requests)
+    metric_col2.metric("الهجمات المصدومة", attack_count, delta_color="inverse")
+    metric_col3.metric("الطلبات السليمة", clean_count)
+    
+    with st.expander("🔍 عرض تفاصيل السجل التاريخي للجلسة الحالية"):
+        for i, log in enumerate(reversed(st.session_state.security_audit_log), 1):
+            st.markdown(f"**الطلب #{total_requests - i + 1}** — الحالة: {log['status']}")
+            st.text(f"السؤال: {log['query']}")
+            st.markdown(f"المقاييس: {log['metrics']}")
+            st.markdown("---")
+else:
+    st.info("لم يتم تسجيل أي عمليات حتى الآن. قم بتشغيل النظام لاختبار السجل التحليلي.")
+        
+               
+               
