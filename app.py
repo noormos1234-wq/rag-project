@@ -1,3 +1,6 @@
+# --- تهيئة سجل الهجمات والتقييم في الذاكرة المؤقتة ---
+if "security_audit_log" not in st.session_state:
+    st.session_state.security_audit_log = []
 import os
 import re
 from typing import List, Tuple
