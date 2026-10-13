@@ -93,7 +93,7 @@ class SecurityMiddleware:
         return structured_prompt.strip(), compromised
 
 
-# --- 2. محرك الـ RAG والعمليات ---
+# --- 2. محرك الـ RAG والعمليات (مع التحديث الشامل لمعالجة الروابط) ---
 class CompleteMasterRAGSystem:
     def __init__(self, chunk_size: int = 400, overlap: int = 80):
         self.chunk_size = chunk_size
@@ -131,20 +131,31 @@ class CompleteMasterRAGSystem:
         return text
 
     def extract_url_content(self, url: str) -> str:
+        """
+        [محدث ومطور]: جلب وتنقية محتوى الويب بشكل متوافق تماماً مع الفصل الثالث
+        عبر إزالة السكربتات، التنسيقات، الوسوم الوصفية (Meta)، والعناصر غير المرئية لتفادي الهجمات الخفية.
+        """
         if not url or not url.strip():
             return ""
         try:
-            headers = {'User-Agent': 'Mozilla/5.0'}
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AcademicResearchBot/1.0'}
             response = requests.get(url.strip(), headers=headers, timeout=10)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
-                for script in soup(["script", "style"]):
-                    script.extract()
-                return soup.get_text(separator=' ')
+                
+                # إزالة العناصر غير المرغوبة والوسوم المادية والميتا التي تُستغل في الحقن الخفي
+                for element in soup(["script", "style", "meta", "link", "noscript", "header", "footer", "nav"]):
+                    element.extract()
+                    
+                # استخراج النصوص الصافية مع الحفاظ على الفواصل
+                clean_text = soup.get_text(separator=' ')
+                # تنظيف الفراغات المتعددة
+                clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+                return clean_text
             else:
                 return f"Error fetching URL: status {response.status_code}"
         except Exception as e:
-            return f"Error: {e}"
+            return f"Error fetching URL: {e}"
 
     def perform_text_chunking(self, raw_text: str) -> List[str]:
         if not raw_text or "Error" in raw_text:
@@ -221,7 +232,7 @@ class CompleteMasterRAGSystem:
 
 # --- 3. تصميم واجهة المستخدم (Streamlit UI) ---
 st.title("🛡️ Secure RAG & Indirect Prompt Injection Defense Framework")
-st.markdown("إطار عمل رسالة الماجستير: دعم ملفات PDF و Word، الاسترجاع الدلالي، العزل الهيكلي، وتوثيق سجل الهجمات.")
+st.markdown("إطار عمل رسالة الماجستير: دعم ملفات PDF و Word، الروابط الحية، الاسترجاع الدلالي، العزل الهيكلي، وتوثيق سجل الهجمات.")
 
 system_engine = CompleteMasterRAGSystem()
 
@@ -264,9 +275,10 @@ with col2:
                 if docx_text and not docx_text.startswith("Error"):
                     raw_data += docx_text + "\n"
 
-        url_text = system_engine.extract_url_content(url_input)
-        if url_text and not url_text.startswith("Error"):
-            raw_data += url_text + "\n"
+        if url_input and url_input.strip():
+            url_text = system_engine.extract_url_content(url_input)
+            if url_text and not url_text.startswith("Error"):
+                raw_data += url_text + "\n"
 
         if not raw_data.strip():
             st.error("❌ Error: Empty Data Source. الرجاء رفع ملف أو إدخال رابط صحيح.")
@@ -341,6 +353,3 @@ if st.session_state.security_audit_log:
             st.markdown("---")
 else:
     st.info("لم يتم تسجيل أي عمليات حتى الآن. قم بتشغيل النظام لاختبار السجل التحليلي.")
-        
-               
-               
