@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from typing import List, Tuple
 from pypdf import PdfReader
 from docx import Document
@@ -93,7 +94,7 @@ class SecurityMiddleware:
         return structured_prompt.strip(), compromised
 
 
-# --- 2. محرك الـ RAG والعمليات (مع التحديث الشامل لمعالجة الروابط) ---
+# --- 2. محرك الـ RAG والعمليات ---
 class CompleteMasterRAGSystem:
     def __init__(self, chunk_size: int = 400, overlap: int = 80):
         self.chunk_size = chunk_size
@@ -131,10 +132,6 @@ class CompleteMasterRAGSystem:
         return text
 
     def extract_url_content(self, url: str) -> str:
-        """
-        [محدث ومطور]: جلب وتنقية محتوى الويب بشكل متوافق تماماً مع الفصل الثالث
-        عبر إزالة السكربتات، التنسيقات، الوسوم الوصفية (Meta)، والعناصر غير المرئية لتفادي الهجمات الخفية.
-        """
         if not url or not url.strip():
             return ""
         try:
@@ -142,14 +139,9 @@ class CompleteMasterRAGSystem:
             response = requests.get(url.strip(), headers=headers, timeout=10)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # إزالة العناصر غير المرغوبة والوسوم المادية والميتا التي تُستغل في الحقن الخفي
                 for element in soup(["script", "style", "meta", "link", "noscript", "header", "footer", "nav"]):
                     element.extract()
-                    
-                # استخراج النصوص الصافية مع الحفاظ على الفواصل
                 clean_text = soup.get_text(separator=' ')
-                # تنظيف الفراغات المتعددة
                 clean_text = re.sub(r'\s+', ' ', clean_text).strip()
                 return clean_text
             else:
@@ -232,7 +224,7 @@ class CompleteMasterRAGSystem:
 
 # --- 3. تصميم واجهة المستخدم (Streamlit UI) ---
 st.title("🛡️ Secure RAG & Indirect Prompt Injection Defense Framework")
-st.markdown("إطار عمل رسالة الماجستير: دعم ملفات PDF و Word، الروابط الحية، الاسترجاع الدلالي، العزل الهيكلي، وتوثيق سجل الهجمات.")
+st.markdown("إطار عمل رسالة الماجستير: دعم ملفات PDF و Word، الروابط الحية، الاسترجاع الدلالي، العزل الهيكلي، وتوثيق سجل الهجمات والزمن.")
 
 system_engine = CompleteMasterRAGSystem()
 
@@ -259,9 +251,12 @@ with col1:
     run_button = st.button("🚀 تشغيل النظام بالكامل وتوليد الرد الآمن", type="primary")
 
 with col2:
-    st.subheader("📊 المخرجات والنتائج الأمنية")
+    st.subheader("📊 المخرجات والنتائج الأمنية والزمنية")
     
     if run_button:
+        # بدء حساب زمن المعالجة (Start Latency Timer)
+        start_time = time.time()
+        
         raw_data = ""
         
         if uploaded_file is not None:
@@ -300,8 +295,7 @@ with col2:
             )
 
             security_status = "🚨 Attack Detected & Neutralized!" if is_attacked else "✅ Clean Request Verified."
-            metrics_info = f"Chunks Created: {len(chunks)} | Chunk Size: {system_engine.chunk_size} | Overlap: {system_engine.overlap}"
-
+            
             llm_response = ""
             if llm_choice == "Local Model (Hugging Face - gemma-2b-it)":
                 llm_response = system_engine.call_local_transformer(final_protected_prompt)
@@ -310,12 +304,19 @@ with col2:
             elif llm_choice == "None (Prompt Generation Only)":
                 llm_response = "ℹ️ Mode set to Prompt Generation Only (No external LLM invoked. Protected prompt built successfully)."
 
-            # حفظ السجل في الذاكرة المؤقتة للجلسة
+            # حساب زمن المعالجة الكلي بالأجزاء من الثانية (End Latency Timer)
+            end_time = time.time()
+            elapsed_time = round(end_time - start_time, 3)
+
+            metrics_info = f"Chunks: {len(chunks)} | Size: {system_engine.chunk_size} | Overlap: {system_engine.overlap} | Latency: {elapsed_time}s"
+
+            # حفظ السجل مع الزمن في الذاكرة المؤقتة للجلسة
             st.session_state.security_audit_log.append({
                 "status": security_status,
                 "is_attacked": is_attacked,
                 "query": query_box,
-                "metrics": metrics_info
+                "metrics": metrics_info,
+                "latency": elapsed_time
             })
 
             st.markdown("---")
@@ -324,7 +325,7 @@ with col2:
             else:
                 st.success(f"**حالة الأمان:** {security_status}")
                 
-            st.text_input("📊 مقاييس الـ RAG (Metrics)", value=metrics_info, disabled=True)
+            st.text_input("📊 مقاييس الـ RAG والزمن (Metrics & Latency)", value=metrics_info, disabled=True)
             st.text_area("🔍 النص المسترجع دلالياً (Retrieved Context)", value=retrieved_context, height=100)
             st.text_area("🧱 البرومبت النهائي المعزول (Protected Isolated Prompt)", value=final_protected_prompt, height=150)
             st.text_area("🤖 رد النموذج اللغوي النهائي (Final LLM Response)", value=llm_response, height=150)
@@ -333,23 +334,25 @@ with col2:
 
 # --- عرض سجل التدقيق وتقييم الأمان (Security Audit Trail Section) ---
 st.markdown("---")
-st.subheader("📋 سجل تقييم الأمان والتدقيق (Security Audit Trail)")
+st.subheader("📋 سجل تقييم الأمان، التدقيق والأداء الزمني (Security & Latency Audit Trail)")
 
 if st.session_state.security_audit_log:
     total_requests = len(st.session_state.security_audit_log)
     attack_count = sum(1 for log in st.session_state.security_audit_log if log["is_attacked"])
     clean_count = total_requests - attack_count
+    avg_latency = round(sum(log["latency"] for log in st.session_state.security_audit_log) / total_requests, 3)
     
-    metric_col1, metric_col2, metric_col3 = st.columns(3)
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
     metric_col1.metric("إجمالي الطلبات", total_requests)
     metric_col2.metric("الهجمات المصدومة", attack_count, delta_color="inverse")
     metric_col3.metric("الطلبات السليمة", clean_count)
+    metric_col4.metric("متوسط زمن الاستجابة", f"{avg_latency}s")
     
-    with st.expander("🔍 عرض تفاصيل السجل التاريخي للجلسة الحالية"):
+    with st.expander("🔍 عرض تفاصيل السجل التاريخي للجلسة الحالية والزمن"):
         for i, log in enumerate(reversed(st.session_state.security_audit_log), 1):
             st.markdown(f"**الطلب #{total_requests - i + 1}** — الحالة: {log['status']}")
             st.text(f"السؤال: {log['query']}")
-            st.markdown(f"المقاييس: {log['metrics']}")
+            st.markdown(f"المقاييس والزمن: {log['metrics']}")
             st.markdown("---")
 else:
-    st.info("لم يتم تسجيل أي عمليات حتى الآن. قم بتشغيل النظام لاختبار السجل التحليلي.")
+    st.info("لم يتم تسجيل أي عمليات حتى الآن. قم بتشغيل النظام لاختبار السجل التحليلي والأداء الزمني.")
