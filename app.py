@@ -10,37 +10,28 @@ import streamlit as st
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-
-# --- إعداد صفحة Streamlit ---
+# --- إعداد صفحة Streamlit مع دعم الاتجاه العربي RTL ---
 st.set_page_config(
-    page_title="Secure RAG & Prompt Injection Defense",
+    page_title="إطار عمل حماية الـ RAG والهجمات",
     layout="wide"
 )
+
+st.markdown("""
+<style>
+    /* فرض اتجاه الصفحة من اليمين لليسار ودعم اللغة العربية */
+    body, [class*="css"] {
+        direction: rtl;
+        text-align: right;
+    }
+    .stTextInput, .stTextArea, .stSelectbox, .stFileUploader {
+        text-align: right;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # --- تهيئة سجل الهجمات والتقييم في الذاكرة المؤقتة للجلسة ---
 if "security_audit_log" not in st.session_state:
     st.session_state.security_audit_log = []
-
-# --- تحميل نموذج Transformers محلياً لمرة واحدة (Cached) ---
-@st.cache_resource
-def load_local_model():
-    MODEL_NAME = "google/gemma-2b-it"
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-        model = AutoModelForCausalLM.from_pretrained(
-            MODEL_NAME, 
-            torch_dtype=torch.float16, 
-            device_map="auto"
-        )
-        generator = pipeline("text-generation", model=model, tokenizer=tokenizer)
-        return generator, tokenizer, "✅ تم تحميل النموذج المحلي بنجاح!"
-    except Exception as e:
-        return None, None, f"⚠️ تنبيه أثناء تحميل النموذج: {e}"
-
-# تحميل النموذج
-local_generator, tokenizer, model_load_status = load_local_model()
 
 
 # --- 1. طبقة الحراسة والأمان (Security Middleware Layer) ---
@@ -175,24 +166,6 @@ class CompleteMasterRAGSystem:
         best_match_index = similarities.argmax()
         return self.chunks[best_match_index]
 
-    def call_local_transformer(self, prompt: str) -> str:
-        if local_generator is None:
-            return "❌ Local model is not loaded properly."
-        try:
-            outputs = local_generator(
-                prompt, 
-                max_new_tokens=256, 
-                do_sample=False, 
-                temperature=0.0,
-                pad_token_id=tokenizer.eos_token_id
-            )
-            generated_text = outputs[0]['generated_text']
-            if generated_text.startswith(prompt):
-                return generated_text[len(prompt):].strip()
-            return generated_text
-        except Exception as e:
-            return f"⚠️ Error during local generation: {e}"
-
     def call_groq_api(self, prompt: str) -> str:
         try:
             api_key = st.secrets["GROQ_KEY"]
@@ -200,7 +173,7 @@ class CompleteMasterRAGSystem:
             api_key = os.environ.get("GROQ_KEY", "")
         
         if not api_key:
-            return "❌ Error: Could not retrieve 'GROQ_KEY' from Streamlit Secrets or environment."
+            return "❌ خطأ: تعذر العثور على مفتاح Groq API في إعدادات Streamlit Secrets."
         
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
@@ -217,13 +190,13 @@ class CompleteMasterRAGSystem:
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']
             else:
-                return f"❌ Groq API Error ({response.status_code}): {response.text}"
+                return f"❌ خطأ في الاتصال بـ Groq API ({response.status_code}): {response.text}"
         except Exception as e:
-            return f"❌ Exception during Groq API call: {e}"
+            return f"❌ استثناء أثناء الاتصال بـ Groq API: {e}"
 
 
 # --- 3. تصميم واجهة المستخدم (Streamlit UI) ---
-st.title("🛡️ Secure RAG & Indirect Prompt Injection Defense Framework")
+st.title("🛡️ إطار عمل حماية الـ RAG وهجمات الحقن الخفي")
 st.markdown("إطار عمل رسالة الماجستير: دعم ملفات PDF و Word، الروابط الحية، الاسترجاع الدلالي، العزل الهيكلي، وتوثيق سجل الهجمات والزمن.")
 
 system_engine = CompleteMasterRAGSystem()
@@ -232,21 +205,20 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("📥 مدخلات البيانات والإعدادات")
-    uploaded_file = st.file_uploader("📄 1. رفع مستند (PDF أو Word .docx)", type=['pdf', 'docx'])
-    url_input = st.text_input("🌐 2. أو إدخال رابط صفحة ويب (URL)", placeholder="https://...")
-    query_box = st.text_area("💬 3. سؤال المستخدم (User Query)", placeholder="اكتب سؤالك هنا...")
-    simulate_attack = st.checkbox("🧪 4. محاكاة هجوم حقن غير مباشر", value=False)
+    uploaded_file = st.file_uploader("1. رفع مستند (PDF أو Word .docx)", type=['pdf', 'docx'])
+    url_input = st.text_input("2. أو إدخال رابط صفحة ويب (URL)", placeholder="https://...")
+    query_box = st.text_area("3. سؤال المستخدم (User Query)", placeholder="اكتب سؤالك هنا...")
+    simulate_attack = st.checkbox("4. محاكاة هجوم حقن غير مباشر", value=False)
     
-    st.markdown("### ⚙️ اختيار النموذج اللغوي (LLM Selection)")
+    st.markdown("### ⚙️ إعدادات النموذج اللغوي")
     llm_choice = st.selectbox(
-        "اختر مزود النموذج",
+        "اختر وضع التوليد",
         [
             "Groq API (Cloud - openai/gpt-oss-20b)",
-            "Local Model (Hugging Face - gemma-2b-it)",
-            "None (Prompt Generation Only)"
+            "Prompt Generation Only (بدون نموذج خارجي)"
         ]
     )
-    st.info(f"ℹ️ حالة النموذج: {model_load_status}")
+    st.info("ℹ️ النظام جاهز للعمل والتقييم التجريبي.")
 
     run_button = st.button("🚀 تشغيل النظام بالكامل وتوليد الرد الآمن", type="primary")
 
@@ -254,7 +226,7 @@ with col2:
     st.subheader("📊 المخرجات والنتائج الأمنية والزمنية")
     
     if run_button:
-        # بدء حساب زمن المعالجة (Start Latency Timer)
+        # بدء حساب زمن المعالجة
         start_time = time.time()
         
         raw_data = ""
@@ -276,7 +248,7 @@ with col2:
                 raw_data += url_text + "\n"
 
         if not raw_data.strip():
-            st.error("❌ Error: Empty Data Source. الرجاء رفع ملف أو إدخال رابط صحيح.")
+            st.error("❌ خطأ: مصدر البيانات فارغ. الرجاء رفع ملف أو إدخال رابط صحيح.")
         elif not query_box.strip():
             st.warning("⚠️ الرجاء كتابة سؤال المستخدم.")
         else:
@@ -294,21 +266,19 @@ with col2:
                 user_query=query_box
             )
 
-            security_status = "🚨 Attack Detected & Neutralized!" if is_attacked else "✅ Clean Request Verified."
+            security_status = "🚨 تم اكتشاف وتحييد الهجوم بنجاح!" if is_attacked else "✅ تم التحقق من سلامة الطلب."
             
             llm_response = ""
-            if llm_choice == "Local Model (Hugging Face - gemma-2b-it)":
-                llm_response = system_engine.call_local_transformer(final_protected_prompt)
-            elif llm_choice == "Groq API (Cloud - openai/gpt-oss-20b)":
+            if "Groq API" in llm_choice:
                 llm_response = system_engine.call_groq_api(final_protected_prompt)
-            elif llm_choice == "None (Prompt Generation Only)":
-                llm_response = "ℹ️ Mode set to Prompt Generation Only (No external LLM invoked. Protected prompt built successfully)."
+            else:
+                llm_response = "ℹ️ وضع توليد البرومبت فقط (تم بناء البرومبت المعزول بنجاح دون استدعاء نموذج سحابي)."
 
-            # حساب زمن المعالجة الكلي بالأجزاء من الثانية (End Latency Timer)
+            # حساب زمن المعالجة الكلي بالأجزاء من الثانية
             end_time = time.time()
             elapsed_time = round(end_time - start_time, 3)
 
-            metrics_info = f"Chunks: {len(chunks)} | Size: {system_engine.chunk_size} | Overlap: {system_engine.overlap} | Latency: {elapsed_time}s"
+            metrics_info = f"عدد المقاطع: {len(chunks)} | حجم المقطع: {system_engine.chunk_size} | التداخل: {system_engine.overlap} | زمن المعالجة: {elapsed_time} ثانية"
 
             # حفظ السجل مع الزمن في الذاكرة المؤقتة للجلسة
             st.session_state.security_audit_log.append({
@@ -325,16 +295,16 @@ with col2:
             else:
                 st.success(f"**حالة الأمان:** {security_status}")
                 
-            st.text_input("📊 مقاييس الـ RAG والزمن (Metrics & Latency)", value=metrics_info, disabled=True)
+            st.text_input("📊 مقاييس الأداء والزمن", value=metrics_info, disabled=True)
             st.text_area("🔍 النص المسترجع دلالياً (Retrieved Context)", value=retrieved_context, height=100)
             st.text_area("🧱 البرومبت النهائي المعزول (Protected Isolated Prompt)", value=final_protected_prompt, height=150)
             st.text_area("🤖 رد النموذج اللغوي النهائي (Final LLM Response)", value=llm_response, height=150)
     else:
-        st.info("قم بملء المدخلات على الجانب الأيسر واضغط على زر التشغيل لعرض النتائج هنا.")
+        st.info("قم بملء المدخلات على اليمين واضغط على زر التشغيل لعرض النتائج هنا.")
 
 # --- عرض سجل التدقيق وتقييم الأمان (Security Audit Trail Section) ---
 st.markdown("---")
-st.subheader("📋 سجل تقييم الأمان، التدقيق والأداء الزمني (Security & Latency Audit Trail)")
+st.subheader("📋 سجل تقييم الأمان، التدقيق والأداء الزمني")
 
 if st.session_state.security_audit_log:
     total_requests = len(st.session_state.security_audit_log)
@@ -346,7 +316,7 @@ if st.session_state.security_audit_log:
     metric_col1.metric("إجمالي الطلبات", total_requests)
     metric_col2.metric("الهجمات المصدومة", attack_count, delta_color="inverse")
     metric_col3.metric("الطلبات السليمة", clean_count)
-    metric_col4.metric("متوسط زمن الاستجابة", f"{avg_latency}s")
+    metric_col4.metric("متوسط زمن الاستجابة", f"{avg_latency} ثانية")
     
     with st.expander("🔍 عرض تفاصيل السجل التاريخي للجلسة الحالية والزمن"):
         for i, log in enumerate(reversed(st.session_state.security_audit_log), 1):
