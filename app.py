@@ -243,8 +243,8 @@ with col1:
     llm_choice = st.selectbox(
         "Select LLM Provider",
         [
-            "Groq API Cloud LLM (openai/gpt-oss-20b)",
             "Local Hugging Face LLM (google/gemma-2b-it)",
+            "Groq API Cloud LLM (openai/gpt-oss-20b)",
             "Prompt Generation Only (No LLM Call)"
         ]
     )
@@ -312,8 +312,10 @@ with col2:
 
             metrics_info = f"Chunks: {len(chunks)} | Size: {system_engine.chunk_size} | Overlap: {system_engine.overlap} | Latency: {elapsed_time}s"
 
-            # Log to Audit Trail
+            # Log to Audit Trail with Timestamp
+            current_timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
             st.session_state.security_audit_log.append({
+                "timestamp": current_timestamp,
                 "status": security_status,
                 "is_attacked": is_attacked,
                 "query": query_box,
@@ -352,7 +354,7 @@ if st.session_state.security_audit_log:
     
     with st.expander("🔍 View Detailed Audit Log & Latency History"):
         for i, log in enumerate(reversed(st.session_state.security_audit_log), 1):
-            st.markdown(f"**Request #{total_requests - i + 1}** — Status: {log['status']}")
+            st.markdown(f"**Request #{total_requests - i + 1}** — `[{log.get('timestamp', 'N/A')}]` Status: {log['status']}")
             st.text(f"Query: {log['query']}")
             st.markdown(f"Metrics: {log['metrics']}")
             st.markdown("---")
