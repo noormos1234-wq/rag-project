@@ -1,5 +1,5 @@
 from datetime import datetime
-import io  # مكتبة ضرورية لتصدير ملفات الـ Excel
+import io
 import os
 import re
 import time
@@ -25,7 +25,7 @@ st.set_page_config(
 if "security_audit_log" not in st.session_state:
   st.session_state.security_audit_log = []
 
-# --- Cached Function to Load Local LLM (Safe Fallback) ---
+# --- Cached Function to Load Local LLM (google/gemma-2b-it) ---
 
 
 @st.cache_resource
@@ -37,7 +37,8 @@ def load_local_model():
       return (
           None,
           None,
-          "⚠️ HF_TOKEN missing. Use 'Prompt Generation Only' mode.",
+          "⚠️ HF_TOKEN missing in secrets. Please configure it or use Prompt"
+          " Generation Only.",
       )
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, token=hf_token)
     model = AutoModelForCausalLM.from_pretrained(
@@ -47,15 +48,21 @@ def load_local_model():
         token=hf_token,
     )
     generator = pipeline("text-generation", model=model, tokenizer=tokenizer)
-    return generator, tokenizer, "✅ Local LLM Loaded Successfully!"
+    return (
+        generator,
+        tokenizer,
+        "✅ Local LLM (google/gemma-2b-it) Loaded Successfully!",
+    )
   except Exception as e:
     return (
         None,
         None,
-        "⚠️ Local LLM Notice: Use 'Prompt Generation Only' or Groq API.",
+        f"⚠️ Local LLM Notice (Gated Repo): Ensure HF_TOKEN is valid or use"
+        f" Prompt Generation Only.",
     )
 
 
+# Load Local LLM Engine
 local_generator, tokenizer, model_load_status = load_local_model()
 
 
@@ -216,7 +223,10 @@ class CompleteMasterRAGSystem:
 
   def call_local_transformer(self, prompt: str) -> str:
     if local_generator is None:
-      return "❌ Local LLM is not loaded properly."
+      return (
+          "❌ Local LLM (google/gemma-2b-it) is not loaded properly. Check your"
+          " HF_TOKEN."
+      )
     try:
       outputs = local_generator(
           prompt,
@@ -246,8 +256,9 @@ class CompleteMasterRAGSystem:
         "Authorization": f"Bearer {api_key.strip()}",
         "Content-Type": "application/json",
     }
+    # استخدام نموذج Groq الفعال والحديث
     payload = {
-        "model": "llama3-70b-8192",
+        "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.0,
     }
@@ -290,13 +301,12 @@ with col1:
   )
 
   st.markdown("### ⚙️ LLM Model Provider Selection")
-  # جعل خيار التوليد المباشر هو الخيار الأول الافتراضي لتجنب أخطاء النماذج المقفلة
   llm_choice = st.selectbox(
       "Select LLM Provider",
       [
-          "Prompt Generation Only (Recommended for Thesis Evaluation)",
-          "Groq API Cloud LLM (llama3-70b-8192)",
           "Local Hugging Face LLM (google/gemma-2b-it)",
+          "Groq API Cloud LLM (llama-3.3-70b-versatile)",
+          "Prompt Generation Only (Recommended for Thesis Evaluation)",
       ],
   )
   st.info(f"ℹ️ Status: {model_load_status}")
@@ -346,7 +356,6 @@ with col2:
       system_engine.create_vector_embeddings()
       retrieved_context = system_engine.semantic_retrieval(query_box)
 
-      # إذا تم محاكاة الهجوم، نضمن فحص النص المسترجع بدقة
       if simulate_attack and not any(
           p in retrieved_context.lower()
           for p in ["ignore", "تجاهل", "leak", "unrestricted"]
@@ -396,7 +405,6 @@ with col2:
           f" {system_engine.overlap} | Latency: {elapsed_time}s"
       )
 
-      # تسجيل البيانات في Audit Trail مع التصنيفات لحسابات الفصل الرابع
       current_timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
       st.session_state.security_audit_log.append({
           "Timestamp": current_timestamp,
@@ -459,7 +467,6 @@ if st.session_state.security_audit_log:
   metric_col3.metric("Clean Requests", clean_count)
   metric_col4.metric("Avg Latency", f"{avg_latency}s")
 
-  # --- تصدير السجلات إلى ملف إكسل باستخدام io.BytesIO ---
   logs_df = pd.DataFrame(st.session_state.security_audit_log)
   buffer = io.BytesIO()
   with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
