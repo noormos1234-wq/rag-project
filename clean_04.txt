@@ -1,7 +1,0 @@
-Cloud Computing Basics
-
-Cloud computing is the delivery of computing resources such as servers, storage, databases and software over the internet, usually on a pay-as-you-go basis. Instead of buying and maintaining physical hardware, organizations rent capacity from a provider and scale it up or down as demand changes.
-
-There are three common service models. Infrastructure as a Service offers virtual machines and networks, Platform as a Service provides a managed environment for building and running applications, and Software as a Service delivers complete applications through a web browser.
-
-Benefits include lower upfront costs, faster deployment and built-in options for backup and recovery. Risks include dependence on a single provider, unexpected bills if usage is not monitored, and the need to configure access controls carefully so that data is not exposed. Many companies now use a mix of public and private clouds to balance flexibility with control.
