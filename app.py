@@ -12,57 +12,22 @@ import requests
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import streamlit as st
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
-# --- Streamlit Page Configuration ---
+# --- إعدادات صفحة Streamlit ---
 st.set_page_config(
     page_title="Secure RAG & LLM Indirect Prompt Injection Defense Framework",
     layout="wide",
 )
 
-# --- Initialize Security Audit Trail in Session State ---
+# --- تهيئة سجلات التدقيق والتقييم في الجلسة ---
 if "security_audit_log" not in st.session_state:
   st.session_state.security_audit_log = []
 
 if "structured_evaluation_records" not in st.session_state:
   st.session_state.structured_evaluation_records = []
 
-# --- Cached Function to Load Local LLM (google/gemma-2b-it) ---
 
-
-@st.cache_resource
-def load_local_model():
-  MODEL_NAME = "google/gemma-2b-it"
-  try:
-    hf_token = st.secrets.get("HF_TOKEN", "")
-    if not hf_token:
-      return (
-          None,
-          None,
-          "⚠️ HF_TOKEN missing. Use 'Prompt Generation Only' mode.",
-      )
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, token=hf_token)
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME,
-        torch_dtype=torch.float16,
-        device_map="auto",
-        token=hf_token,
-    )
-    generator = pipeline("text-generation", model=model, tokenizer=tokenizer)
-    return generator, tokenizer, "✅ Local LLM (google/gemma-2b-it) Loaded!"
-  except Exception as e:
-    return (
-        None,
-        None,
-        "⚠️ Local LLM Notice: Use 'Prompt Generation Only' mode.",
-    )
-
-
-local_generator, tokenizer, model_load_status = load_local_model()
-
-
-# --- 1. Security Middleware Layer ---
+# --- 1. طبقة الحراسة الأمنية (Security Middleware) ---
 class SecurityMiddleware:
 
   def __init__(self):
@@ -117,7 +82,7 @@ class SecurityMiddleware:
     return structured_prompt.strip(), compromised
 
 
-# --- 2. Core Master RAG Engine ---
+# --- 2. محرك الـ RAG الأساسي (Master RAG Engine) ---
 class CompleteMasterRAGSystem:
 
   def __init__(self, chunk_size: int = 400, overlap: int = 80):
@@ -213,32 +178,45 @@ class CompleteMasterRAGSystem:
     best_match_index = similarities.argmax()
     return self.chunks[best_match_index]
 
-  def call_local_transformer(self, prompt: str) -> str:
-    if local_generator is None:
-      return "❌ Local LLM is not loaded properly."
+  def call_groq_api(self, prompt: str) -> str:
     try:
-      outputs = local_generator(
-          prompt,
-          max_new_tokens=256,
-          do_sample=False,
-          temperature=0.0,
-          pad_token_id=tokenizer.eos_token_id if tokenizer else None,
+      api_key = st.secrets["GROQ_KEY"]
+    except Exception:
+      api_key = os.environ.get("GROQ_KEY", "")
+
+    if not api_key:
+      return (
+          "❌ Error: 'GROQ_KEY' missing in Streamlit Secrets. Please add it to"
+          " Settings -> Secrets."
       )
-      generated_text = outputs[0]["generated_text"]
-      if generated_text.startswith(prompt):
-        return generated_text[len(prompt) :].strip()
-      return generated_text
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key.strip()}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.0,
+    }
+    try:
+      response = requests.post(url, json=payload, headers=headers, timeout=30)
+      if response.status_code == 200:
+        return response.json()["choices"][0]["message"]["content"]
+      else:
+        return f"❌ Groq API Error ({response.status_code}): {response.text}"
     except Exception as e:
-      return f"⚠️ Error during Local LLM generation: {e}"
+      return f"❌ Exception during Groq API call: {e}"
 
 
-# --- 3. Streamlit User Interface (UI) ---
+# --- 3. تصميم واجهة المستخدم (Streamlit UI) ---
 st.title(
     "🛡️ Secure RAG & LLM Indirect Prompt Injection Defense Framework"
 )
 st.markdown(
     "Master's Thesis Project: Supporting PDF/Word Docs, Web URLs, Semantic"
-    " Retrieval, Boundary Isolation, Excel Audit Log & Latency Metrics."
+    " Retrieval, Boundary Isolation, Groq Cloud LLM & Excel Metrics."
 )
 
 system_engine = CompleteMasterRAGSystem()
@@ -272,11 +250,10 @@ with col1:
   llm_choice = st.selectbox(
       "Select LLM Provider",
       [
+          "Groq API Cloud LLM (llama-3.3-70b-versatile)",
           "Prompt Generation Only (Recommended for Thesis Evaluation)",
-          "Local Model (Hugging Face - gemma-2b-it)",
       ],
   )
-  st.info(f"ℹ️ Status: {model_load_status}")
 
   run_button = st.button(
       "🚀 Execute Pipeline & Generate Safe Response", type="primary"
@@ -346,14 +323,12 @@ with col2:
       )
 
       llm_response = ""
-      if "Prompt Generation Only" in llm_choice:
+      if "Groq API Cloud LLM" in llm_choice:
+        llm_response = system_engine.call_groq_api(final_protected_prompt)
+      else:
         llm_response = (
             "ℹ️ Prompt Generation Only Mode (Protected boundary prompt"
             " constructed successfully)."
-        )
-      else:
-        llm_response = system_engine.call_local_transformer(
-            final_protected_prompt
         )
 
       end_time = time.time()
@@ -417,7 +392,7 @@ with col2:
   else:
     st.info("Fill in inputs on the left panel and click Execute.")
 
-# --- Security Audit Trail Section & Excel Export ---
+# --- قسم سجلات التدقيق والمقاييس وتصدير الإكسل ---
 st.markdown("---")
 st.subheader("📋 Security & Latency Audit Trail Log & Chapter 4 Metrics")
 
@@ -452,7 +427,6 @@ if st.session_state.structured_evaluation_records:
     * **Detection Rate (TPR):** `{TPR:.2f}%` | **False Positive Rate (FPR):** `{FPR:.2f}%` | **Attack Success Rate (ASR):** `{ASR:.2f}%`
     """)
 
-  # --- تصدير ملف الإكسل (Excel Export Button) ---
   buffer = io.BytesIO()
   with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
     df_eval.to_excel(writer, sheet_name="Audit_Logs", index=False)
@@ -461,11 +435,7 @@ if st.session_state.structured_evaluation_records:
       label="📊 تحميل ملف النتائج والسجلات الكامل (evaluation_results.xlsx)",
       data=buffer.getvalue(),
       file_name="evaluation_results.xlsx",
-      mime=(
-          "application/vnd.openpyxlspreadsheetml.sheet"
-          if False
-          else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      ),
+      mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   )
 
   with st.expander("🔍 View Detailed Audit Log History"):
