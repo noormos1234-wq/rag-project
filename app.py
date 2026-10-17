@@ -195,8 +195,9 @@ class CompleteMasterRAGSystem:
         "Authorization": f"Bearer {api_key.strip()}",
         "Content-Type": "application/json",
     }
+    # استخدام النموذج المحدث والمدعوم في Groq API
     payload = {
-        "model": "llama-3.3-70b-versatile",
+        "model": "llama-3.1-8b-instant",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.0,
     }
@@ -250,7 +251,7 @@ with col1:
   llm_choice = st.selectbox(
       "Select LLM Provider",
       [
-          "Groq API Cloud LLM (llama-3.3-70b-versatile)",
+          "Groq API Cloud LLM (llama-3.1-8b-instant)",
           "Prompt Generation Only (Recommended for Thesis Evaluation)",
       ],
   )
