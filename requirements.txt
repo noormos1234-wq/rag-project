@@ -1,10 +1,8 @@
 streamlit
-pandas
-scikit-learn
-torch
-transformers
-pypdf
-python-docx
-requests
 beautifulsoup4
+python-docx
+pandas
+pypdf
+requests
+scikit-learn
 openpyxl
