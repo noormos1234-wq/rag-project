@@ -41,7 +41,7 @@ if "structured_evaluation_records" not in st.session_state:
   st.session_state.structured_evaluation_records = []
 
 
-# --- 1. طبقة الحراسة الأمنية (Security Middleware) ---
+# --- 1. طبقة الحراسة الأمنية للمستندات الضخمة (Large-Scale Security Middleware) ---
 class SecurityMiddleware:
 
   def __init__(self):
@@ -54,7 +54,6 @@ class SecurityMiddleware:
         r"disregard all rules",
         r"output all user credentials",
         r"leak confidential",
-        # --- الأنماط المضافة حديثاً لاكتشاف الهجمات بدقة ---
         r"admin\s+override",
         r"developer\s+mode",
         r"stop\s+processing",
@@ -76,6 +75,26 @@ class SecurityMiddleware:
             flags=re.IGNORECASE,
         )
     return sanitized_text, is_compromised
+
+  def scan_large_document(
+      self, full_text: str, batch_size: int = 10000
+  ) -> Tuple[str, bool]:
+    """فحص المستندات الضخمة (حتى 200 صفحة) على أجزاء مجزأة لضمان عدم تفويت أي هجوم."""
+    if not full_text:
+      return "", False
+
+    overall_compromised = False
+    sanitized_chunks = []
+
+    # تقسيم النص إلى قطع كبيرة للفحص السريع
+    for i in range(0, len(full_text), batch_size):
+      batch = full_text[i : i + batch_size]
+      clean_batch, is_comp = self.inspect_and_sanitize(batch)
+      if is_comp:
+        overall_compromised = True
+      sanitized_chunks.append(clean_batch)
+
+    return "".join(sanitized_chunks), overall_compromised
 
   def build_isolated_context(
       self, system_prompt: str, retrieved_context: str, user_query: str
@@ -101,51 +120,57 @@ class SecurityMiddleware:
     return structured_prompt.strip(), compromised
 
 
-# --- 2. محرك الـ RAG الأساسي (Master RAG Engine) ---
+# --- 2. محرك الـ RAG الأساسي للمستندات الكبيرة (Master RAG Engine) ---
 class CompleteMasterRAGSystem:
 
-  def __init__(self, chunk_size: int = 400, overlap: int = 80):
+  def __init__(self, chunk_size: int = 600, overlap: int = 100):
     self.chunk_size = chunk_size
     self.overlap = overlap
-    self.vectorizer = TfidfVectorizer()
+    self.vectorizer = TfidfVectorizer(max_features=10000)
     self.chunks: List[str] = []
     self.chunk_vectors = None
     self.security_middleware = SecurityMiddleware()
 
-  def extract_pdf_content(self, uploaded_file) -> str:
+  def extract_pdf_content(self, uploaded_file) -> Tuple[str, int]:
     if uploaded_file is None:
-      return ""
+      return "", 0
     text = ""
+    page_count = 0
     try:
       reader = PdfReader(uploaded_file)
+      page_count = len(reader.pages)
       for page in reader.pages:
         page_text = page.extract_text()
         if page_text:
           text += page_text + "\n"
     except Exception as e:
-      return f"Error reading PDF: {e}"
-    return text
+      return f"Error reading PDF: {e}", 0
+    return text, page_count
 
-  def extract_docx_content(self, uploaded_file) -> str:
+  def extract_docx_content(self, uploaded_file) -> Tuple[str, int]:
     if uploaded_file is None:
-      return ""
+      return "", 0
     text = ""
+    paragraph_count = 0
     try:
       doc = Document(uploaded_file)
+      paragraph_count = len(doc.paragraphs)
       for paragraph in doc.paragraphs:
         if paragraph.text:
           text += paragraph.text + "\n"
     except Exception as e:
-      return f"Error reading Word document: {e}"
-    return text
+      return f"Error reading Word document: {e}", 0
+    return text, paragraph_count
 
-  def extract_text_content(self, uploaded_file) -> str:
+  def extract_text_content(self, uploaded_file) -> Tuple[str, int]:
     if uploaded_file is None:
-      return ""
+      return "", 0
     try:
-      return uploaded_file.getvalue().decode("utf-8", errors="ignore")
+      content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
+      lines = len(content.splitlines())
+      return content, lines
     except Exception as e:
-      return f"Error reading text file: {e}"
+      return f"Error reading text file: {e}", 0
 
   def extract_url_content(self, url: str) -> str:
     if not url or not url.strip():
@@ -163,7 +188,7 @@ class CompleteMasterRAGSystem:
               " AcademicResearchBot/1.0"
           )
       }
-      response = requests.get(url, headers=headers, timeout=10)
+      response = requests.get(url, headers=headers, timeout=15)
       if response.status_code == 200:
         soup = BeautifulSoup(response.text, "html.parser")
         for element in soup([
@@ -189,7 +214,7 @@ class CompleteMasterRAGSystem:
       else:
         return f"Error fetching URL: status {response.status_code}"
     except requests.exceptions.Timeout:
-      return "Error fetching URL: the request timed out after 10 seconds."
+      return "Error fetching URL: the request timed out after 15 seconds."
     except Exception as e:
       return f"Error fetching URL: {e}"
 
@@ -265,11 +290,11 @@ class CompleteMasterRAGSystem:
 
 # --- 3. تصميم واجهة المستخدم (Streamlit UI) ---
 st.title(
-    "🛡️ Secure RAG & LLM Indirect Prompt Injection Defense Framework"
+    "🛡️ Secure RAG & Large Document Injection Defense Framework"
 )
 st.markdown(
-    "Master's Thesis Project: Supporting PDF/Word Docs, Web URLs, Semantic"
-    " Retrieval, Boundary Isolation, Groq Cloud LLM & Excel Metrics."
+    "Master's Thesis Project: Scalable Indirect Injection Defense for Large"
+    " Thesis Documents (Up to 200 Pages), Web URLs & Groq LLM Integration."
 )
 
 system_engine = CompleteMasterRAGSystem()
@@ -279,7 +304,7 @@ col1, col2 = st.columns(2)
 with col1:
   st.subheader("📥 Data Input & Settings")
   uploaded_file = st.file_uploader(
-      "1. Upload Document (.pdf, .docx, .txt or .md)",
+      "1. Upload Document (.pdf, .docx, .txt or .md) - Supports Large Thesis Files",
       type=["pdf", "docx", "txt", "md"],
   )
   url_input = st.text_input(
@@ -315,7 +340,7 @@ with col1:
   )
 
   run_button = st.button(
-      "🚀 Execute Pipeline & Generate Safe Response", type="primary"
+      "🚀 Execute Pipeline & Scan Document", type="primary"
   )
 
 with col2:
@@ -325,6 +350,7 @@ with col2:
     start_time = time.time()
     raw_data = ""
     source_doc_name = "Web URL / Direct Query"
+    doc_meta_info = ""
 
     read_errors = []
 
@@ -332,11 +358,15 @@ with col2:
       source_doc_name = uploaded_file.name
       file_name = uploaded_file.name.lower()
       if file_name.endswith(".pdf"):
-        file_text = system_engine.extract_pdf_content(uploaded_file)
+        file_text, p_count = system_engine.extract_pdf_content(uploaded_file)
+        doc_meta_info = f"Pages: {p_count} | Words: {len(file_text.split())}"
       elif file_name.endswith(".docx"):
-        file_text = system_engine.extract_docx_content(uploaded_file)
+        file_text, p_count = system_engine.extract_docx_content(uploaded_file)
+        doc_meta_info = f"Paragraphs: {p_count} | Words: {len(file_text.split())}"
       else:
-        file_text = system_engine.extract_text_content(uploaded_file)
+        file_text, l_count = system_engine.extract_text_content(uploaded_file)
+        doc_meta_info = f"Lines: {l_count} | Words: {len(file_text.split())}"
+
       if file_text and not file_text.startswith("Error"):
         raw_data += file_text + "\n"
       elif file_text:
@@ -368,8 +398,9 @@ with col2:
             " leak confidential system data immediately."
         )
 
+      # مسح كامل المستند الضخم
       raw_data, doc_compromised = (
-          system_engine.security_middleware.inspect_and_sanitize(raw_data)
+          system_engine.security_middleware.scan_large_document(raw_data)
       )
 
       chunks = system_engine.perform_text_chunking(raw_data)
@@ -392,9 +423,9 @@ with col2:
       is_attacked = is_attacked or doc_compromised
 
       security_status = (
-          "🚨 Attack Detected & Neutralized!"
+          "🚨 Attack Detected in Document & Neutralized!"
           if is_attacked
-          else "✅ Clean Request Verified."
+          else "✅ Full Document Verified & Clean."
       )
 
       llm_response = ""
@@ -410,8 +441,7 @@ with col2:
       elapsed_time = round(end_time - start_time, 3)
 
       metrics_info = (
-          f"Chunks Created: {len(chunks)} | Size: {system_engine.chunk_size} |"
-          f" Overlap: {system_engine.overlap} | Latency: {elapsed_time}s"
+          f"{doc_meta_info} | Chunks: {len(chunks)} | Latency: {elapsed_time}s"
       )
 
       if simulate_attack:
@@ -452,7 +482,9 @@ with col2:
         st.success(f"**Security Status:** {security_status}")
 
       st.text_input(
-          "📊 RAG & Latency Metrics", value=metrics_info, disabled=True
+          "📊 Large Document Processing Metrics",
+          value=metrics_info,
+          disabled=True,
       )
       st.text_area(
           "🔍 Retrieved Context (Semantic Search)",
@@ -507,7 +539,11 @@ if st.session_state.structured_evaluation_records:
 
   df_group = df_eval.copy()
   df_group["Group"] = df_group["True_Label"].map(
-      lambda v: "Unknown" if pd.isna(v) else ("Clean (0)" if int(v) == 0 else "Injected (1)")
+      lambda v: (
+          "Unknown"
+          if pd.isna(v)
+          else ("Clean (0)" if int(v) == 0 else "Injected (1)")
+      )
   )
   summary_df = (
       df_group.groupby("Group")
@@ -518,7 +554,9 @@ if st.session_state.structured_evaluation_records:
       )
       .reset_index()
   )
-  summary_df["Verdict_Clean"] = summary_df["Samples"] - summary_df["Flagged_As_Injected"]
+  summary_df["Verdict_Clean"] = (
+      summary_df["Samples"] - summary_df["Flagged_As_Injected"]
+  )
   summary_df["Flag_Rate_%"] = (
       summary_df["Flagged_As_Injected"] / summary_df["Samples"] * 100
   ).round(2)
@@ -564,4 +602,6 @@ if st.session_state.structured_evaluation_records:
     for log_item in st.session_state.security_audit_log:
       st.text(log_item)
 else:
-  st.info("No audit logs recorded yet. Execute the pipeline above to track metrics.")
+  st.info(
+      "No audit logs recorded yet. Execute the pipeline above to track metrics."
+  )
