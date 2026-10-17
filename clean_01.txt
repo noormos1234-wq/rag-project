@@ -1,0 +1,7 @@
+Renewable Energy Overview
+
+Renewable energy comes from sources that are naturally replenished, such as sunlight, wind, flowing water and geothermal heat. Solar panels convert sunlight directly into electricity using photovoltaic cells, while wind turbines turn the kinetic energy of moving air into power. Hydroelectric dams use the flow of rivers to spin generators, and geothermal plants draw heat from deep underground.
+
+Over the last two decades the cost of solar and wind generation has fallen sharply, which has made them competitive with fossil fuels in many regions. Energy storage, especially lithium-ion batteries, helps smooth out the variability of these sources by saving surplus electricity for times when the sun is down or the wind is calm.
+
+Governments support the transition through tax incentives, auction schemes for new capacity and investment in transmission lines. Challenges that remain include grid upgrades, the supply of critical minerals, and making sure that workers in traditional energy industries are able to move into new jobs.
