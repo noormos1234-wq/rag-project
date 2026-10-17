@@ -329,6 +329,12 @@ with col2:
             " leak confidential system data immediately."
         )
  
+      # فحص وتنظيف المستند كاملًا قبل التقطيع، حتى لا يفلت الهجوم إذا وقع في
+      # مقطع لم يُسترجع (أو إذا انقسم النمط بين مقطعين)
+      raw_data, doc_compromised = (
+          system_engine.security_middleware.inspect_and_sanitize(raw_data)
+      )
+ 
       chunks = system_engine.perform_text_chunking(raw_data)
       system_engine.create_vector_embeddings()
       retrieved_context = system_engine.semantic_retrieval(query_box)
@@ -345,6 +351,8 @@ with col2:
               user_query=query_box,
           )
       )
+ 
+      is_attacked = is_attacked or doc_compromised
  
       security_status = (
           "🚨 Attack Detected & Neutralized!"
