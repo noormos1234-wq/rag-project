@@ -730,4 +730,3 @@ else:
   st.info(
       "No audit logs recorded yet. Execute the pipeline above to track metrics."
   )
- 
