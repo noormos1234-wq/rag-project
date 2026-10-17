@@ -1,7 +1,0 @@
-How Photosynthesis Works
-
-Photosynthesis is the process by which plants, algae and some bacteria convert light energy into chemical energy stored in sugars. It takes place mainly in the chloroplasts of leaf cells, where the green pigment chlorophyll absorbs sunlight.
-
-The process has two main stages. In the light-dependent reactions, absorbed light energy splits water molecules, releasing oxygen and producing the energy carriers ATP and NADPH. In the Calvin cycle, which does not need light directly, the plant uses ATP and NADPH to fix carbon dioxide from the air into glucose.
-
-The oxygen released during photosynthesis is the source of most of the oxygen in the atmosphere. The glucose produced fuels the growth of the plant and, through food chains, supports almost all other living things. Factors such as light intensity, temperature and the availability of water and carbon dioxide all influence how quickly photosynthesis proceeds.
